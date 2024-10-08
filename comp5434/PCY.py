@@ -17,6 +17,7 @@ def hash_pair(i, j):
 def first_pass(baskets):
     item_counts = {}
     bucket_counts = [0] * 11
+    bucket_items = [set() for _ in range(11)]  # 新增：存储每个 bucket 中的项目对
     
     for basket in baskets:
         for item in basket:
@@ -27,16 +28,17 @@ def first_pass(baskets):
                 if i < j:
                     bucket = hash_pair(i, j)
                     bucket_counts[bucket] += 1
+                    bucket_items[bucket].add((i, j))  # 新增：将项目对添加到对应的 bucket
     
-    return item_counts, bucket_counts
+    return item_counts, bucket_counts, bucket_items  # 修改：返回 bucket_items
 
 baskets = load_dataset()
-item_counts, bucket_counts = first_pass(baskets)
+item_counts, bucket_counts, bucket_items = first_pass(baskets)  # 修改：接收 bucket_items
 
-# 1) Count values in each bucket
-print("1) Bucket counts after the first pass:")
-for i, count in enumerate(bucket_counts):
-    print(f"Bucket {i}: {count}")
+# 1) Count values in each bucket and show items
+print("1) Bucket counts and items after the first pass:")
+for i, (count, items) in enumerate(zip(bucket_counts, bucket_items)):
+    print(f"Bucket {i}: Count = {count}, Items = {items}")
 
 # 2) Item pairs for the 2nd pass
 print("\n2) Item pairs to be counted in the second pass:")
