@@ -48,9 +48,22 @@ def calculate_similarity_matrix(minHashMatrix):
 
 
 def main():
-   matrix=get_matrix()
-   minHashMatrix=get_minHashMatrix(matrix)
-   similarity_matrix=calculate_similarity_matrix(minHashMatrix)
+   import numpy as np
+
+# ... 其他函数保持不变 ...
+
+def main():
+   matrix = get_matrix()
+   minHashMatrix = get_minHashMatrix(matrix)
+   similarity_matrix = calculate_similarity_matrix(minHashMatrix)
+   
+   print("原始矩阵:")
+   print(matrix)
+   
+   print("\nMinHash 签名矩阵:")
+   print(minHashMatrix)
+   
+   print("\n相似度矩阵:")
    print(similarity_matrix)
 
 if __name__ == "__main__":
