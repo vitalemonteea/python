@@ -1,4 +1,4 @@
-#Q5 A
+#Q5
 import numpy as np
 
 def calculate_average_capacity(L):

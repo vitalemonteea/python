@@ -1,13 +1,13 @@
 import numpy as np
 
 # Constants
-d = 200  # distance in meters
+d = 200  
 K = 10**(-30/10)  # K in linear scale (converted from -30 dB)
-d0 = 1  # reference distance in meters
-gamma = 3.5  # path loss exponent
-sigma_psi_dB = np.sqrt(10)  # standard deviation of shadowing in dB
-Pt = 1  # transmitted signal power in W
-F = 24.067358  # number of realizations
+d0 = 1  
+gamma = 3.5  
+sigma_psi_dB = np.sqrt(10) 
+Pt = 1  
+F = 24.067358  
 
 # Convert Pt to dBm
 Pt_dBm = 10 * np.log10(Pt * 1000)
