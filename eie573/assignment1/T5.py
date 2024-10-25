@@ -8,7 +8,7 @@ def calculate_average_capacity(L):
     K_dB = -30
     gamma = 4
     K = 10**(K_dB/10)
-    F = 24.067358
+    F = 2.406735
     Pt = F
     N0B_dBm = -100   
     N0B = 10**(N0B_dBm/10) * 1e-3
