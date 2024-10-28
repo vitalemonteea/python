@@ -26,4 +26,4 @@ thresholds = np.arange(-90, -60, 5)
 for PMinDBm in thresholds:
     outageCount = np.sum(prDBm  < PMinDBm)
     outageProbability = outageCount / numRealizations
-    print(f"Outage Probability [PMin = {PMinDBm} dBm]: {outageProbability:.5f}")
+    print(f"Outage Probability [P_min = {PMinDBm} dBm]: {outageProbability*100:.5f}%")
