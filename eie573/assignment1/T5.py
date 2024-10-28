@@ -29,13 +29,13 @@ def calculateAverageCapacity(L):
 # Calculate for L1
 L1 = int(2.406735 * 1e6)
 C1 = calculateAverageCapacity(L1)
-print(f"Average capacity C1 = {C1:.6f} bits/s/Hz")
+print(f"Average capacity C1 = {C1:.6f} bps/Hz")
 
 # Calculate for L2
 L2 = int(2.406735 * 1e7)
 C2 = calculateAverageCapacity(L2)
-print(f"Average capacity C2 = {C2:.6f} bits/s/Hz")
+print(f"Average capacity C2 = {C2:.6f} bps/Hz")
 
 # Compare results
-print(f"\nDifference between C1 and C2: {abs(C1 - C2):.6f} bits/s/Hz")
+print(f"\nDifference between C1 and C2: {abs(C1 - C2):.6f} bps/Hz")
 print(f"Relative difference: {abs(C1 - C2) / C1 * 100:.6f}%")
