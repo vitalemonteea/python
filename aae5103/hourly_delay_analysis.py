@@ -2,12 +2,9 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 
-# Get current file's absolute path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Build complete path for CSV file
 csv_path = os.path.join(current_dir, "flight_data", "processed_departure_flights.csv")
 
-# Read processed data
 df = pd.read_csv(csv_path)
 
 # Convert Date to datetime and extract hour

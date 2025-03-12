@@ -59,12 +59,15 @@ def preprocess_flight_data(df):
             actual = actual + timedelta(days=1)
             
         delay = actual - planned
-        return delay.total_seconds() / 60
+        delay_minutes = delay.total_seconds() / 60
+        
+        # 可以添加一个显式检查，确保提前起飞不会被视为延误
+        return delay_minutes  # 允许返回负值表示提前起飞
     
     df['Delay_Minutes'] = df.apply(calculate_delay, axis=1)
     
     # 4. Mark delayed flights (delay > 30 minutes)
-    df['Is_Delayed'] = (df['Delay_Minutes'] > 30) & (~df['Is_Cancelled'])
+    df['Is_Delayed'] = (df['Delay_Minutes'] >= 30) & (~df['Is_Cancelled'])
     
     # 5. Select only necessary columns
     columns_to_keep = [
@@ -72,6 +75,9 @@ def preprocess_flight_data(df):
         'Is_Cancelled', 'Delay_Minutes', 'Is_Delayed'
     ]
     df = df[columns_to_keep]
+    
+    # 随后可以添加一个新列来标记提前起飞的航班
+    df['Is_Early'] = df['Delay_Minutes'] < 0
     
     return df
 

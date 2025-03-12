@@ -1,15 +1,11 @@
 import pandas as pd
 import os
 
-# Get current file's absolute path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Build complete path for CSV file
 csv_path = os.path.join(current_dir, "flight_data", "processed_departure_flights.csv")
 
-# Read processed data
 df = pd.read_csv(csv_path)
 
-# Convert date column to datetime type
 df['Date'] = pd.to_datetime(df['Date'])
 
 # Filter date range and airlines
@@ -20,30 +16,30 @@ mask = (
 )
 filtered_df = df[mask]
 
-# Calculate statistics by airline
-results = filtered_df.groupby('Airline').agg({
-    'Is_Delayed': ['count', 'sum'],  # count for total flights, sum for delayed flights
-    'Delay_Minutes': 'mean'  # average delay time
-}).round(2)
+# 计算每个航空公司的总航班和延误航班
+airline_stats = {}
+for airline in ['CX', 'HX', 'UO']:
+    airline_data = filtered_df[filtered_df['Airline'] == airline]
+    total_flights = len(airline_data)
+    delayed_flights = sum(airline_data['Is_Delayed'])
+    
+    # 只计算延误航班的平均延误时间
+    delayed_only = airline_data[airline_data['Is_Delayed'] == True]
+    avg_delay = delayed_only['Delay_Minutes'].mean() if len(delayed_only) > 0 else 0
+    
+    airline_stats[airline] = {
+        'total_flights': total_flights,
+        'delayed_flights': delayed_flights,
+        'delay_rate': (delayed_flights / total_flights * 100) if total_flights > 0 else 0,
+        'avg_delay': avg_delay
+    }
 
-# Calculate delay rates
-delay_rates = {}
-for airline in results.index:
-    delay_rates[airline] = (results.loc[airline, ('Is_Delayed', 'sum')] / 
-                          results.loc[airline, ('Is_Delayed', 'count')] * 100).round(2)
-
-# Format output results
+# 打印结果
 print("Airline Delay Analysis (2023-06-01 to 2023-06-18)")
 print("-" * 50)
-for airline in ['CX', 'HX', 'UO']:
-    if airline in results.index:
-        total_flights = results.loc[airline, ('Is_Delayed', 'count')]
-        delayed_flights = results.loc[airline, ('Is_Delayed', 'sum')]
-        delay_rate = delay_rates[airline]
-        avg_delay = results.loc[airline, ('Delay_Minutes', 'mean')]
-        
-        print(f"\n{airline} Airlines:")
-        print(f"Total Flights: {total_flights}")
-        print(f"Delayed Flights: {delayed_flights}")
-        print(f"Delay Rate: {delay_rate}%")
-        print(f"Average Delay Time: {avg_delay:.2f} minutes")
+for airline, stats in airline_stats.items():
+    print(f"\n{airline} Airlines:")
+    print(f"Total Flights: {stats['total_flights']}")
+    print(f"Delayed Flights: {stats['delayed_flights']}")
+    print(f"Delay Rate: {stats['delay_rate']:.2f}%")
+    print(f"Average Delay Time: {stats['avg_delay']:.2f} minutes")
