@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>航班登机口管理系统</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="300"> <!-- 每5分钟自动刷新页面 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <style>
+        .gate { padding: 10px; margin: 5px; border: 1px solid #ccc; }
+        .gate.closed { background-color: #ffcccc; }
+        .flight { padding: 5px; margin: 2px; background-color: #e1f5fe; }
+        #gates-container { display: flex; flex-wrap: wrap; }
+        .gate-box { width: 200px; margin: 10px; border: 1px solid #ddd; padding: 10px; }
+        .gate-box.closed { background-color: #ffeeee; border-color: #ff8888; }
+        .gate-name { font-weight: bold; background-color: #f8f9fa; padding: 5px; }
+        .flight-item { margin: 5px 0; padding: 5px; background-color: #e9ecef; border-radius: 3px; }
+        .delayed { background-color: #fff3cd; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">实时航班登机口管理</h1>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">当前分配状态</h3>
+                        <button id="refresh-btn" class="btn btn-sm btn-outline-primary">刷新数据</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="gates-container">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>突发事件处理</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h5>关闭登机口</h5>
+                            <select id="gate-select" multiple class="form-control"></select>
+                            <button id="close-gates" class="btn btn-warning mt-2">关闭选中登机口</button>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h5>延误航班</h5>
+                            <select id="flight-select" class="form-control"></select>
+                            <input type="time" id="new-time" class="form-control mt-2">
+                            <button id="delay-flight" class="btn btn-primary mt-2">更新航班时间</button>
+                        </div>
+                        
+                        <button id="reassign-all" class="btn btn-danger mt-4 w-100">重新分配登机口</button>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>分配结果</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="results" class="alert alert-info">等待重新分配...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // 全局变量
+        let closedGates = [];
+        let delayedFlights = [];
+        let loadingData = false;
+        
+        // 加载当前分配状态
+        function loadCurrentAssignment(callback) {
+            if (loadingData) return; // 防止重复加载
+            
+            loadingData = true;
+            // 显示加载指示器
+            $('#gates-container').html('<div class="d-flex justify-content-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>');
+            
+            $.ajax({
+                url: '/current_assignment',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    loadingData = false;
+                    console.log("成功加载航班数据:", data);
+                    const gatesContainer = $('#gates-container');
+                    gatesContainer.empty();
+                    
+                    // 清空下拉菜单
+                    $('#gate-select').empty();
+                    $('#flight-select').empty();
+                    
+                    if (!data.gates || !data.flights) {
+                        gatesContainer.html('<div class="alert alert-warning">无法加载数据：数据格式不正确</div>');
+                        console.error("数据格式不正确:", data);
+                        return;
+                    }
+                    
+                    if (data.gates.length === 0) {
+                        gatesContainer.html('<div class="alert alert-info">没有登机口数据</div>');
+                        return;
+                    }
+                    
+                    // 填充登机口下拉菜单
+                    data.gates.forEach(function(gate) {
+                        $('#gate-select').append(`<option value="${gate}">${gate}</option>`);
+                    });
+                    
+                    // 按登机口分组显示航班
+                    const flightsByGate = {};
+                    
+                    // 初始化登机口
+                    data.gates.forEach(function(gate) {
+                        flightsByGate[gate] = [];
+                    });
+                    
+                    // 分配航班到登机口
+                    data.flights.forEach(function(flight) {
+                        if (flightsByGate[flight.gate]) {
+                            flightsByGate[flight.gate].push(flight);
+                        }
+                        
+                        // 填充航班下拉菜单
+                        $('#flight-select').append(`<option value="${flight.no}">${flight.no} (${flight.gate} - ${flight.deptime})</option>`);
+                    });
+                    
+                    // 显示登机口和航班
+                    Object.keys(flightsByGate).sort().forEach(function(gate) {
+                        const gateBox = $('<div class="gate-box"></div>');
+                        const gateName = $(`<div class="gate-name">${gate}</div>`);
+                        const flightsDiv = $('<div class="flights"></div>');
+                        
+                        // 检查是否是关闭的登机口
+                        if (closedGates.includes(gate)) {
+                            gateBox.addClass('closed');
+                        }
+                        
+                        if (flightsByGate[gate].length === 0) {
+                            flightsDiv.append('<div class="text-muted">无航班</div>');
+                        } else {
+                            flightsByGate[gate].forEach(function(flight) {
+                                // 检查是否为延误航班
+                                const isDelayed = delayedFlights.findIndex(f => f.no === flight.no) !== -1;
+                                const flightItem = $(`
+                                    <div class="flight-item ${isDelayed ? 'delayed' : ''}">
+                                        <strong>${flight.no}</strong><br>
+                                        起飞: ${flight.deptime}
+                                    </div>
+                                `);
+                                flightsDiv.append(flightItem);
+                            });
+                        }
+                        
+                        gateBox.append(gateName).append(flightsDiv);
+                        gatesContainer.append(gateBox);
+                    });
+                    
+                    // 恢复登机口关闭状态的UI显示
+                    updateGateClosures();
+                    
+                    if (callback) {
+                        callback();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    loadingData = false;
+                    console.error("加载航班数据错误:", error);
+                    $('#gates-container').html(`
+                        <div class="alert alert-danger">
+                            <h4>加载数据失败</h4>
+                            <p>${error}</p>
+                            <p>状态码: ${xhr.status}</p>
+                            <button class="btn btn-primary" onclick="loadCurrentAssignment()">重试</button>
+                        </div>
+                    `);
+                }
+            });
+        }
+        
+        // 更新登机口关闭状态的UI
+        function updateGateClosures() {
+            $('.gate-box').removeClass('closed');
+            closedGates.forEach(function(gate) {
+                $(`.gate-box:contains('${gate}') .gate-name`).parent().addClass('closed');
+            });
+        }
+        
+        // 关闭登机口
+        $('#close-gates').click(function() {
+            const selectedGates = $('#gate-select').val();
+            if (selectedGates && selectedGates.length > 0) {
+                closedGates = selectedGates;
+                updateGateClosures();
+                updateResults(`已标记登机口 ${closedGates.join(', ')} 为关闭状态`);
+                
+                // 自动触发重新分配
+                $('#reassign-all').click();
+            }
+        });
+        
+        // 延误航班
+        $('#delay-flight').click(function() {
+            const flightNo = $('#flight-select').val();
+            const newTime = $('#new-time').val();
+            
+            if (flightNo && newTime) {
+                // 检查是否已经存在这个航班
+                const existingIndex = delayedFlights.findIndex(f => f.no === flightNo);
+                if (existingIndex !== -1) {
+                    delayedFlights[existingIndex].new_time = newTime;
+                } else {
+                    delayedFlights.push({
+                        no: flightNo,
+                        new_time: newTime
+                    });
+                }
+                
+                // 在UI中标记延误航班
+                $(`.flight-item:contains('${flightNo}')`).addClass('delayed');
+                // 更新起飞时间显示
+                $(`.flight-item:contains('${flightNo}') strong`).next('br').next().text(`起飞: ${newTime}`);
+                
+                updateResults(`已更新航班 ${flightNo} 的起飞时间为 ${newTime}`);
+                
+                // 自动触发重新分配
+                $('#reassign-all').click();
+            }
+        });
+        
+        // 刷新按钮
+        $('#refresh-btn').click(function() {
+            loadCurrentAssignment();
+        });
+        
+        // 重新分配登机口
+        $('#reassign-all').click(function() {
+            if (closedGates.length === 0 && delayedFlights.length === 0) {
+                $('#results').html('<div class="alert alert-warning">请先选择需要关闭的登机口或者延误的航班</div>');
+                return;
+            }
+            
+            $('#results').html('<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div> 计算中...');
+            $('#reassign-all').prop('disabled', true).text('分配中...');
+            
+            $.ajax({
+                url: '/reassign',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    closed_gates: closedGates,
+                    delayed_flights: delayedFlights
+                }),
+                success: function(result) {
+                    console.log("重新分配结果:", result);
+                    $('#reassign-all').prop('disabled', false).text('重新分配登机口');
+                    
+                    if (result.status === 'success') {
+                        let resultHtml = '<div class="alert alert-success"><h6>重新分配成功!</h6><ul>';
+                        
+                        // 只显示变更的航班
+                        const changedFlights = result.assignment.filter(f => f.original_gate !== f.new_gate);
+                        
+                        if (changedFlights.length === 0) {
+                            resultHtml += '<li>所有航班保持原有登机口分配</li>';
+                        } else {
+                            changedFlights.forEach(function(assignment) {
+                                resultHtml += `<li>航班 ${assignment.flight}: ${assignment.original_gate} → ${assignment.new_gate}</li>`;
+                            });
+                        }
+                        
+                        resultHtml += '</ul></div>';
+                        $('#results').html(resultHtml);
+                        
+                        // 完全刷新数据以确保一致性
+                        loadCurrentAssignment();
+                        
+                        // 延迟一小段时间后清除状态
+                        setTimeout(function() {
+                            // 重置全局状态
+                            closedGates = [];
+                            delayedFlights = [];
+                            // 更新UI显示
+                            updateGateClosures();
+                        }, 1000);
+                    } else {
+                        $('#results').html(`<div class="alert alert-danger">分配失败: ${result.message}</div>`);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("重新分配错误:", error);
+                    $('#reassign-all').prop('disabled', false).text('重新分配登机口');
+                    $('#results').html(`<div class="alert alert-danger">发生错误: ${error} (状态码: ${xhr.status})</div>`);
+                }
+            });
+        });
+        
+        // 更新结果区域
+        function updateResults(message) {
+            let html = `<p>${message}</p>`;
+            
+            if (closedGates.length > 0) {
+                html += `<p>关闭的登机口: ${closedGates.join(', ')}</p>`;
+            }
+            
+            if (delayedFlights.length > 0) {
+                html += '<p>延误的航班:</p><ul>';
+                delayedFlights.forEach(function(flight) {
+                    html += `<li>${flight.no} → ${flight.new_time}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            $('#results').html(html);
+        }
+        
+        // 检查初始数据中的冲突
+        function checkInitialConflicts() {
+            console.log("检查初始数据中的冲突...");
+            const gateFlights = {};
+            const buffer_time = 60; // 分钟 (前后各30分钟)
+            const conflicts = [];
+            
+            // 收集每个登机口的航班
+            $('.gate-box').each(function() {
+                const gateName = $(this).find('.gate-name').text().trim();
+                const flights = [];
+                
+                $(this).find('.flight-item').each(function() {
+                    const flightNo = $(this).find('strong').text().trim();
+                    const deptimeText = $(this).text().match(/起飞: (\d+:\d+)/);
+                    if (deptimeText && deptimeText[1]) {
+                        const deptime = deptimeText[1];
+                        const deptimeMinutes = timeToMinutes(deptime);
+                        flights.push({
+                            no: flightNo,
+                            deptime: deptime,
+                            start: deptimeMinutes - 30,
+                            end: deptimeMinutes + 30
+                        });
+                    }
+                });
+                
+                if (flights.length > 1) {
+                    gateFlights[gateName] = flights;
+                }
+            });
+            
+            // 检查每个登机口的航班是否有时间冲突
+            for (const gate in gateFlights) {
+                const flights = gateFlights[gate];
+                
+                for (let i = 0; i < flights.length; i++) {
+                    for (let j = i + 1; j < flights.length; j++) {
+                        const flight1 = flights[i];
+                        const flight2 = flights[j];
+                        
+                        // 检查是否有时间重叠或间隔不足
+                        if (!((flight1.end + buffer_time <= flight2.start) || 
+                             (flight2.end + buffer_time <= flight1.start))) {
+                            console.warn(`发现初始冲突：登机口 ${gate} 的航班 ${flight1.no}(${flight1.deptime}) 和 ${flight2.no}(${flight2.deptime})`);
+                            conflicts.push({gate: gate, flights: [flight1.no, flight2.no]});
+                        }
+                    }
+                }
+            }
+            
+            // 如果有冲突，显示警告并推荐重新分配
+            if (conflicts.length > 0) {
+                let warningMessage = '检测到以下登机口存在时间冲突:\n';
+                conflicts.forEach(conflict => {
+                    warningMessage += `- 登机口 ${conflict.gate}: ${conflict.flights.join(', ')}\n`;
+                });
+                warningMessage += '\n建议执行重新分配登机口操作以解决冲突。';
+                
+                $('#results').html(`
+                    <div class="alert alert-warning">
+                        <h6>检测到登机口时间冲突！</h6>
+                        <p>系统检测到某些登机口安排了时间过近的航班，这可能导致机场运营问题。</p>
+                        <p>建议点击"重新分配登机口"按钮进行优化调整。</p>
+                        <button class="btn btn-sm btn-outline-danger mt-2" id="auto-reassign">自动优化分配</button>
+                    </div>
+                `);
+                
+                // 添加自动优化按钮的点击事件
+                $('#auto-reassign').click(function() {
+                    // 将有冲突的登机口添加到关闭列表
+                    closedGates = conflicts.map(c => c.gate);
+                    // 触发重新分配
+                    $('#reassign-all').click();
+                });
+            }
+        }
+        
+        // 将时间转换为分钟
+        function timeToMinutes(timeStr) {
+            const parts = timeStr.split(':');
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        }
+        
+        // 初始化页面
+        $(document).ready(function() {
+            console.log("页面已加载，正在获取航班数据...");
+            
+            // 为了解决冲突检测问题，我们首先加载数据，然后自动触发冲突检测
+            loadCurrentAssignment(function() {
+                // 检查初始数据中是否有冲突（如果同一登机口有多个相同时间的航班）
+                checkInitialConflicts();
+            });
+        });
+    </script>
+</body>
+</html> 
